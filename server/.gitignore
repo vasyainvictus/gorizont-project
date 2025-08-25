@@ -1,0 +1,14 @@
+# server/.gitignore
+
+# Зависимости
+/node_modules
+
+# Скомпилированный код
+/dist
+
+# Файлы окружения (содержат секреты!)
+.env
+
+# Логи
+*.log
+/src/generated/prisma

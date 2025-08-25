@@ -1,0 +1,160 @@
+// prisma/schema.prisma
+
+// Этот блок определяет генератор клиента. Он говорит Prisma сгенерировать
+// TypeScript-клиент для взаимодействия с БД.
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Этот блок определяет источник данных. Prisma уже взяла эти данные из вашего .env файла.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== МОДЕЛИ ДАННЫХ ==========
+
+// Модель пользователя. Хранит основную информацию, получаемую от Telegram,
+// и статус верификации.
+model User {
+  id         String   @id @default(cuid()) // Уникальный ID в формате CUID
+  telegramId BigInt   @unique // ID пользователя из Telegram. BigInt, так как он может быть большим.
+  username   String?  // Имя пользователя в Telegram (может отсутствовать)
+  status     UserStatus @default(PENDING_VERIFICATION) // Статус пользователя (см. Enum ниже)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Связи (relations)
+  profile         Profile?         // У каждого пользователя может быть один профиль
+  createdEvents   Event[]          @relation("EventCreator") // События, созданные пользователем
+  attendedEvents  EventAttendee[]  // События, в которых пользователь участвует
+  sentReports     Report[]         @relation("Reporter") // Жалобы, отправленные пользователем
+  receivedReports Report[]         @relation("Reported") // Жалобы, полученные на пользователя
+  sentMessages    Message[]        @relation("MessageSender")
+  chats           ChatParticipant[]
+}
+
+// Модель профиля. Содержит всю информацию, которую пользователь заполняет о себе.
+model Profile {
+  id        String   @id @default(cuid())
+  name      String   // Имя, которое пользователь указывает в анкете
+  age       Int      // Возраст
+  city      String   // Город
+  about     String   @db.VarChar(300) // "Коротко о себе", до 300 символов
+  photoUrl  String   // URL загруженной фотографии
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Связь "один к одному" с User.
+  // Поле userId ссылается на id в модели User.
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique // Внешний ключ
+
+  // Связь "многие ко многим" с интересами
+  interests ProfileInterest[]
+}
+
+// Справочник интересов (тегов)
+model Interest {
+  id   String @id @default(cuid())
+  name String @unique // Название тега (например, "спорт", "выставки")
+
+  profiles ProfileInterest[]
+}
+
+// Связующая таблица для Profile и Interest (многие ко многим)
+model ProfileInterest {
+  profile   Profile  @relation(fields: [profileId], references: [id])
+  profileId String
+  interest  Interest @relation(fields: [interestId], references: [id])
+  interestId String
+
+  @@id([profileId, interestId]) // Составной первичный ключ
+}
+
+// Модель события
+model Event {
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  location     String
+  eventTime    DateTime // Дата и время проведения
+  maxAttendees Int      // Максимальное количество участников
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  creator   User   @relation("EventCreator", fields: [creatorId], references: [id])
+  creatorId String // ID создателя
+
+  attendees EventAttendee[]
+}
+
+// Связующая таблица для участников событий
+model EventAttendee {
+  event   Event  @relation(fields: [eventId], references: [id])
+  eventId String
+  user    User   @relation(fields: [userId], references: [id])
+  userId  String
+
+  @@id([eventId, userId]) // Составной первичный ключ
+}
+
+// Модель чата
+model Chat {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  messages      Message[]
+  participants  ChatParticipant[]
+}
+
+model ChatParticipant {
+  chat    Chat   @relation(fields: [chatId], references: [id])
+  chatId  String
+  user    User   @relation(fields: [userId], references: [id])
+  userId  String
+
+  @@id([chatId, userId])
+}
+
+// Модель сообщения в чате
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+
+  chat   Chat   @relation(fields: [chatId], references: [id])
+  chatId String
+  sender User   @relation("MessageSender", fields: [senderId], references: [id])
+  senderId String
+}
+
+// Модель жалобы
+model Report {
+  id         String       @id @default(cuid())
+  reason     String
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  reporter   User   @relation("Reporter", fields: [reporterId], references: [id])
+  reporterId String
+  reported   User   @relation("Reported", fields: [reportedId], references: [id])
+  reportedId String
+}
+
+
+// Перечисления (Enums) - для полей с предопределенными значениями
+
+enum UserStatus {
+  PENDING_VERIFICATION // В ожидании верификации
+  VERIFIED             // Верифицирован
+  REJECTED             // Отклонен
+  BANNED               // Забанен
+}
+
+enum ReportStatus {
+  PENDING // На рассмотрении
+  RESOLVED // Рассмотрена
+  DISMISSED // Отклонена
+}
