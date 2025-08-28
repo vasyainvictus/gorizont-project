@@ -1,70 +1,99 @@
-import { useEffect, useCallback } from 'react';
-import { useInitData, useMainButton } from '@tma.js/sdk-react';
+// client/src/components/LoginPage.tsx
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { getDevInitDataObject } from '../utils/tma-emulator';
+import { generateInitData } from '../utils/tma-emulator'; // Убедись, что путь верный
 
-// @ts-ignore
-const isTelegramEnv = !!window.Telegram?.WebApp?.initData;
+interface User {
+  id: string;
+  telegramId: bigint;
+  username: string | null;
+  profile: any;
+}
 
-// Теперь onLoginSuccess будет передавать весь ответ от сервера
-interface PanelProps {
+interface LoginPageProps {
   onLoginSuccess: (data: any) => void;
 }
 
-function DebugLoginPanel({ onLoginSuccess }: PanelProps) {
-  const handleDebugLogin = async () => {
+export function LoginPage({ onLoginSuccess }: LoginPageProps) {
+  const [devUsers, setDevUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // 1. При загрузке страницы получаем список всех тестовых пользователей
+  useEffect(() => {
+    const fetchDevUsers = async () => {
+      try {
+        const response = await axios.get('/api/dev/users');
+        setDevUsers(response.data);
+      } catch (error) {
+        console.error("Не удалось загрузить список dev-пользователей:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    // Выполняем только в режиме разработки
+    if (import.meta.env.DEV) {
+      fetchDevUsers();
+    }
+  }, []);
+
+  // 2. Функция "логина" под конкретным, уже существующим пользователем
+  const handleLoginAs = async (user: User) => {
+    // Мы эмулируем данные Telegram для этого конкретного пользователя
+    const initData = generateInitData({
+      id: Number(user.telegramId), // Используем реальный telegramId из БД
+      username: user.username || `user${user.telegramId}`,
+      first_name: user.profile?.name || 'Test',
+    });
+    
+    // Отправляем эмулированные данные на наш обычный роут авторизации
     try {
-      const devData = getDevInitDataObject();
-      const response = await axios.post('/api/auth/telegram', devData);
-      onLoginSuccess(response.data); // Передаем весь объект response.data
+      const response = await axios.post('/api/auth/telegram', { initData });
+      onLoginSuccess(response.data);
     } catch (error) {
-      console.error("Debug login failed", error);
+      console.error("Ошибка входа:", error);
+      alert("Не удалось войти под этим пользователем.");
     }
   };
-  return (
-    <div style={{ border: '2px dashed blue', padding: '15px', marginTop: '20px' }}>
-      <h3>Панель Разработчика</h3>
-      <button onClick={handleDebugLogin}>Войти как Тестовый Пользователь</button>
-    </div>
-  );
-}
 
-export function LoginPage({ onLoginSuccess }: PanelProps) {
-  const performLogin = useCallback(async (authData: any) => {
-    if (!authData) return;
+  // 3. Функция для создания совершенно нового пользователя
+  const handleCreateNewUser = async () => {
+    // Генерируем случайного нового пользователя
+    const newId = Math.floor(10000000 + Math.random() * 90000000);
+    const initData = generateInitData({
+      id: newId,
+      username: `user${newId}`,
+      first_name: 'Newbie',
+    });
     try {
-      const response = await axios.post('/api/auth/telegram', authData);
-      onLoginSuccess(response.data); // Передаем весь объект response.data
-    } catch (err: any) {
-      console.error('Login failed', err);
+      const response = await axios.post('/api/auth/telegram', { initData });
+      onLoginSuccess(response.data);
+    } catch (error) {
+      console.error("Ошибка создания нового пользователя:", error);
     }
-  }, [onLoginSuccess]);
+  };
 
-  if (isTelegramEnv) {
-    const initData = useInitData();
-    const mainButton = useMainButton();
-    useEffect(() => {
-      mainButton.setText('ВОЙТИ ЧЕРЕЗ TELEGRAM');
-      mainButton.show();
-      const loginHandler = () => {
-        if (initData) {
-          const params = new URLSearchParams(initData.toString());
-          const authData: Record<string, any> = {};
-          params.forEach((value, key) => {
-            authData[key] = key === 'user' ? JSON.parse(value) : value;
-          });
-          performLogin(authData);
-        }
-      };
-      mainButton.on('click', loginHandler);
-      return () => mainButton.off('click', loginHandler);
-    }, [initData, mainButton, performLogin]);
-  }
 
   return (
     <div style={{ padding: '20px' }}>
-      <h1>Добро пожаловать в "Горизонт"!</h1>
-      {!isTelegramEnv && <DebugLoginPanel onLoginSuccess={onLoginSuccess} />}
+      <h1>Панель разработчика (Вход)</h1>
+      <p>Выберите пользователя для входа или создайте нового.</p>
+      
+      <button onClick={handleCreateNewUser} style={{ width: '100%', padding: '10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '5px', marginBottom: '20px' }}>
+        Создать нового пользователя
+      </button>
+
+      <h2>Войти как существующий пользователь:</h2>
+      {loading ? (
+        <p>Загрузка пользователей...</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {devUsers.length > 0 ? devUsers.map(user => (
+            <button key={user.id} onClick={() => handleLoginAs(user)}>
+              Войти как: {user.profile?.name || user.username} (ID: {user.telegramId.toString()})
+            </button>
+          )) : <p>Существующие пользователи не найдены. Создайте нового.</p>}
+        </div>
+      )}
     </div>
   );
 }

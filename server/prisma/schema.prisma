@@ -32,13 +32,15 @@ model User {
   receivedReports Report[]         @relation("Reported") // Жалобы, полученные на пользователя
   sentMessages    Message[]        @relation("MessageSender")
   chats           ChatParticipant[]
+  sentConnections     Connection[] @relation("SentConnections")
+  receivedConnections Connection[] @relation("ReceivedConnections")
 }
 
 // Модель профиля. Содержит всю информацию, которую пользователь заполняет о себе.
 model Profile {
   id        String   @id @default(cuid())
   name      String   // Имя, которое пользователь указывает в анкете
-  age       Int      // Возраст
+  birthDate DateTime // Дата рождения для точности
   city      String   // Город
   about     String   @db.VarChar(300) // "Коротко о себе", до 300 символов
   photoUrl  String   // URL загруженной фотографии
@@ -47,7 +49,7 @@ model Profile {
 
   // Связь "один к одному" с User.
   // Поле userId ссылается на id в модели User.
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @unique // Внешний ключ
 
   // Связь "многие ко многим" с интересами
@@ -56,7 +58,7 @@ model Profile {
 
 // Справочник интересов (тегов)
 model Interest {
-  id   String @id @default(cuid())
+  id   Int    @id @default(autoincrement()) // <-- ИСПРАВЛЕНО: опечатка в autoincrement()
   name String @unique // Название тега (например, "спорт", "выставки")
 
   profiles ProfileInterest[]
@@ -64,10 +66,10 @@ model Interest {
 
 // Связующая таблица для Profile и Interest (многие ко многим)
 model ProfileInterest {
-  profile   Profile  @relation(fields: [profileId], references: [id])
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   profileId String
   interest  Interest @relation(fields: [interestId], references: [id])
-  interestId String
+  interestId Int
 
   @@id([profileId, interestId]) // Составной первичный ключ
 }
@@ -143,7 +145,6 @@ model Report {
   reportedId String
 }
 
-
 // Перечисления (Enums) - для полей с предопределенными значениями
 
 enum UserStatus {
@@ -157,4 +158,22 @@ enum ReportStatus {
   PENDING // На рассмотрении
   RESOLVED // Рассмотрена
   DISMISSED // Отклонена
+}
+
+model Connection {
+  id        Int      @id @default(autoincrement())
+  status    String   @default("PENDING") // Статусы: PENDING, ACCEPTED, REJECTED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requesterId String // ID того, кто отправил запрос
+  receiverId  String // ID того, кому отправили запрос
+
+  // Связь с пользователем, который отправил запрос
+  requester User @relation("SentConnections", fields: [requesterId], references: [id], onDelete: Cascade)
+  // Связь с пользоватeлем, который получил запрос
+  receiver  User @relation("ReceivedConnections", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  // Уникальный индекс, чтобы один и тот же человек не мог отправить запрос дважды
+  @@unique([requesterId, receiverId])
 }

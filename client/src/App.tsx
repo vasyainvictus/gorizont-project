@@ -1,36 +1,48 @@
 import { useState } from 'react';
 import { LoginPage } from './components/LoginPage';
+import { FeedPage } from './components/FeedPage';
+import { OnboardingFlow } from './components/OnboardingFlow';
 import { ProfilePage } from './components/ProfilePage';
-import { FeedPage } from './components/FeedPage'; // Импортируем новый компонент
+import { TabBar } from './components/TabBar';
+import { UserProfilePage } from './components/UserProfilePage';
+import { ConnectionsPage } from './components/ConnectionsPage'; // <-- 1. ИМПОРТ
+
+// 2. Добавляем 'connections' в тип
+type Page = 'feed' | 'profile' | 'connections';
 
 function App() {
-  // Это состояние теперь будет хранить ВЕСЬ ответ от сервера, а не только user
   const [authData, setAuthData] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState<Page>('feed');
+  const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
 
-  // Эта функция получает ВЕСЬ ответ от сервера
   const handleLoginSuccess = (data: any) => {
-    console.log("Получены данные для входа:", data);
     setAuthData(data);
   };
 
-  // --- ГЛАВНАЯ ЛОГИКА МАРШРУТИЗАЦИИ ---
+  if (!authData) { return <LoginPage onLoginSuccess={handleLoginSuccess} />; }
+  if (authData.user && !authData.profile) { return <OnboardingFlow userId={authData.user.id} onOnboardingSuccess={handleLoginSuccess} />; }
 
-  // 1. Если данных о входе нет, показываем LoginPage
-  if (!authData) {
-    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
-  }
-
-  // 2. Если данные есть, но профиль пустой (null), показываем ProfilePage
-  if (authData.user && !authData.profile) {
-    return <ProfilePage userId={authData.user.id} />;
-  }
-
-  // 3. Если данные есть и профиль тоже есть, показываем FeedPage
   if (authData.user && authData.profile) {
-    return <FeedPage />;
+    if (viewingProfileId) {
+      return <UserProfilePage 
+                currentUser={authData.user}
+                profileId={viewingProfileId} 
+                onBack={() => setViewingProfileId(null)}
+             />;
+    }
+
+    // 3. ОБНОВЛЕННАЯ ЛОГИКА РЕНДЕРА
+    return (
+      <div style={{ paddingBottom: '60px' }}>
+        {currentPage === 'feed' && <FeedPage user={authData.user} onViewProfile={setViewingProfileId} />}
+        {currentPage === 'profile' && <ProfilePage user={authData.user} />}
+        {currentPage === 'connections' && <ConnectionsPage currentUser={authData.user} />}
+        
+        <TabBar currentPage={currentPage} setCurrentPage={setCurrentPage} />
+      </div>
+    );
   }
 
-  // Запасной вариант на случай странного состояния
   return <LoginPage onLoginSuccess={handleLoginSuccess} />;
 }
 

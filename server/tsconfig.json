@@ -1,23 +1,25 @@
 {
   "compilerOptions": {
     /* Основные опции */
-    "target": "es2020",                // В какой стандарт JavaScript компилировать код
-    "module": "commonjs",              // Используем систему модулей CommonJS (классика для Node.js)
-    "rootDir": "./src",                // Корневая директория с исходным кодом
-    "outDir": "./dist",                // Куда складывать скомпилированный JavaScript
-    
+    "target": "es2020",
+    "module": "commonjs",
+    "outDir": "./dist",
+
     /* Опции для модулей */
-    "moduleResolution": "node",        // Стандартный способ поиска модулей в Node.js
-    "esModuleInterop": true,           // Обеспечивает совместимость между CommonJS и ES модулями
-    
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+
     /* Строгость и качество кода */
-    "strict": true,                    // Включает все строгие проверки типов
-    "noImplicitAny": true,             // Запрещает неявный тип 'any'
-    
+    "strict": true,
+    "noImplicitAny": true,
+
+    /* Типы Node.js */
+    "types": ["node"], // ← Добавляем типы Node.js
+
     /* Дополнительные опции */
-    "forceConsistentCasingInFileNames": true, // Гарантирует, что регистр в именах файлов консистентен
-    "skipLibCheck": true               // Пропускает проверку типов в библиотечных файлах (.d.ts) для ускорения компиляции
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
   },
-  "include": ["src/**/*"], // Явно указываем, что компилировать нужно только файлы в папке src
-  "exclude": ["node_modules"] // Исключаем node_modules из компиляции
+  "include": ["src/**/*", "prisma/**/*"], // ← Добавляем prisma в компиляцию
+  "exclude": ["node_modules"]
 }
